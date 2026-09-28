@@ -143,18 +143,17 @@ def is_qualifying(post):
 
 
 def send_email(post):
-    """
-    Email notification will be added in the next step.
-    For now, print the qualifying post.
-    """
+    github_token = os.environ.get("GITHUB_TOKEN")
+    github_repository = os.environ.get("GITHUB_REPOSITORY")
 
-    print("")
-    print("=" * 60)
-    print("QUALIFYING SPOTIFY COLLAB POST")
-    print("=" * 60)
-    print(f"TITLE: {post.get('title')}")
-    print(f"REDDIT: {post.get('url')}")
+    if not github_token:
+        raise Exception("GITHUB_TOKEN is missing.")
 
+    if not github_repository:
+        raise Exception("GITHUB_REPOSITORY is missing.")
+
+    title = post.get("title", "New Spotify Collaborative Playlist")
+    reddit_url = post.get("url", "")
     content = post.get("content", "")
 
     spotify_match = re.search(
@@ -162,12 +161,62 @@ def send_email(post):
         content
     )
 
-    if spotify_match:
-        print(f"SPOTIFY: {spotify_match.group(0)}")
+    spotify_url = (
+        spotify_match.group(0)
+        if spotify_match
+        else "Spotify link not found"
+    )
 
-    print("=" * 60)
-    print("")
+    issue_title = f"🎵 Spotify Collab: {title}"
 
+    issue_body = f"""## New Spotify Collaborative Playlist Found
+
+**Reddit Post:**  
+{reddit_url}
+
+**Spotify Playlist:**  
+{spotify_url}
+
+### Reddit Post Title
+
+{title}
+
+---
+
+This issue was automatically created by the Reddit Spotify Collab Monitor.
+"""
+
+    api_url = (
+        f"https://api.github.com/repos/"
+        f"{github_repository}/issues"
+    )
+
+    payload = json.dumps({
+        "title": issue_title,
+        "body": issue_body
+    }).encode("utf-8")
+
+    request = urllib.request.Request(
+        api_url,
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {github_token}",
+            "Accept": "application/vnd.github+json",
+            "Content-Type": "application/json",
+            "X-GitHub-Api-Version": "2022-11-28",
+        },
+        method="POST",
+    )
+
+    with urllib.request.urlopen(request, timeout=20) as response:
+        result = json.loads(
+            response.read().decode("utf-8")
+        )
+
+    print(
+        f"GitHub Issue created: "
+        f"{result.get('html_url')}"
+    )
 
 def main():
 
